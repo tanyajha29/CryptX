@@ -4,3 +4,6 @@ gunicorn
 psycopg2-binary
 numpy
 pycryptodomex
+Flask
+Flask-SQLAlchemy
+psycopg2-binary

@@ -49,7 +49,3 @@ Useful commands
 License / Security
 - This project is educational. Do not use for production secrets. Keys and crypto modes here are for demo only. See [`CyberX-2.py`](CyberX-2.py) for implementation details.
 
-If you want, I can:
-- add a README file to the repo,
-- update `dockerfile` CMD to a shell form,
-- or create a small healthcheck for the DB service in `docker-compose.yml`.

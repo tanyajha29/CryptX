@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Secure Encryptor — Popup</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="overlay">
+        <div class="popup" role="dialog" aria-modal="true">
+            <div class="header-section">
+                <div>
+                    <h1>Secure Encryptor</h1>
+                    <p class="lead">Encrypt messages with randomized ciphers and simulate simple attacks.</p>
+                </div>
+                <div class="demo-tag">Demo simulation</div>
+            </div>
+
+            <div class="input-group">
+                <label for="message">Message</label>
+                <textarea id="message" placeholder="Type message here... "></textarea>
+            </div>
+            
+            <div class="input-group">
+                <label for="session_id">Session ID (Required for Decrypt/Simulate)</label>
+                <input type="text" id="session_id" placeholder="Enter session ID... ">
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-primary" onclick="doEncrypt()">Encrypt</button>
+                <button class="btn btn-success" onclick="doDecrypt()">Decrypt</button>
+                <button class="btn btn-warning" onclick="doSimulate()">Simulate Attack</button>
+            </div>
+
+            <div class="results-group">
+                <div id="session-output" class="session-display" style="display:none;"></div>
+                
+                <div id="output" class="main-output">Result will appear here...</div>
+
+                <div id="sim-summary" class="sim-summary" style="display:none;">
+                    <div id="sim-status" class="sim-status"></div>
+
+                    <div class="strength-wrap">
+                        <div class="strength-header">
+                            <div class="strength-title">Security Strength</div>
+                            <div id="strength-percent" class="strength-percent">0%</div>
+                        </div>
+                        <div class="progress" aria-hidden="true">
+                            <div id="strength-bar" class="progress-bar" style="width:0%"></div>
+                        </div>
+                        <div class="progress-label" id="strength-label"></div>
+                    </div>
+
+                    <div id="sim-findings" class="sim-findings"></div>
+
+                    <div id="sim-candidates" class="candidates" style="display:none;">
+                        <strong class="candidate-header">Recovered candidate plaintext(s):</strong>
+                        <div id="cand-list" class="cand-list"></div>
+                    </div>
+
+                    <div id="sim-conclusion" class="sim-conclusion"></div>
+                </div>
+            </div>
+
+            <div class="small">Tip: Simulation attempts simple classical attacks (Caesar & Rail-Fence) and provides an educational strength estimate. Modern ciphers are not broken here.</div>
+        </div>
+    </div>
+
+    <script>
+        // --- Session & Input Functions ---
+        async function doEncrypt(){
+            const msg = document.getElementById("message").value;
+            const form = new URLSearchParams();
+            form.append("message", msg);
+            
+            document.getElementById("output").innerText = "Encrypting...";
+            document.getElementById("session-output").style.display = "none";
+            document.getElementById("sim-summary").style.display = "none";
+
+            const r = await fetch("/encrypt", { method:"POST", body: form });
+            const data = await r.json();
+            
+            if(r.ok){
+                document.getElementById("output").innerText = "Ciphertext:\n" + data.result;
+                // Capture and set session ID
+                document.getElementById("session_id").value = data.session_id;
+                const sessOut = document.getElementById("session-output");
+                sessOut.innerText = `SESSION ID: ${data.session_id}`;
+                sessOut.style.display = "block";
+            } else {
+                document.getElementById("output").innerText = "Encryption Error: " + data.result;
+            }
+        }
+
+        async function doDecrypt(){
+            // Send Session ID for Decrypt
+            const session_id = document.getElementById("session_id").value;
+            const form = new URLSearchParams();
+            form.append("session_id", session_id);
+            
+            document.getElementById("output").innerText = "Decrypting...";
+            document.getElementById("sim-summary").style.display = "none";
+
+            const r = await fetch("/decrypt", { method:"POST", body: form });
+            const data = await r.json();
+            
+            if(r.ok){
+                document.getElementById("output").innerText = "Plaintext:\n" + data.result;
+            } else {
+                document.getElementById("output").innerText = "Decryption Error: " + data.result;
+            }
+        }
+        
+        // Crash-Proof setStrengthUI function
+        function setStrengthUI(strength, label) {
+            const bar = document.querySelector(".progress-bar"); 
+            const pct = Math.max(0, Math.min(100, strength));
+            
+            document.getElementById("strength-percent").innerText = pct + "%";
+            document.getElementById("strength-label").innerText = label;
+
+            // CRITICAL FIX: Only try to set 'style' if the bar element is found (not null)
+            if (bar) { 
+                bar.style.width = pct + "%";
+
+                // color gradient change depending on strength
+                if(pct >= 80){
+                    bar.style.background = "linear-gradient(90deg, #34d399, #10b981)"; // green
+                } else if(pct >= 50){
+                    bar.style.background = "linear-gradient(90deg, #fbbf24, #f97316)"; // amber
+                } else {
+                    bar.style.background = "linear-gradient(90deg, #f87171, #ef4444)"; // red
+                }
+            }
+        }
+
+        async function doSimulate(){
+            // Send Session ID for Simulate
+            const session_id = document.getElementById("session_id").value;
+            const form = new URLSearchParams();
+            form.append("session_id", session_id);
+            
+            document.getElementById("output").innerText = "Simulating attack...";
+            document.getElementById("sim-summary").style.display = "none";
+
+            const r = await fetch("/simulate", { method:"POST", body: form });
+            const data = await r.json();
+            
+            if(data.status !== "ok"){
+                document.getElementById("output").innerText = data.message || "Simulation error";
+                return;
+            }
+
+            // show summary area
+            document.getElementById("sim-summary").style.display = "block";
+            
+            // status
+            const statusEl = document.getElementById("sim-status");
+            if(data.success){
+                statusEl.innerHTML = '<span style="color:#28a745;">✔ Successfully Deciphered by simulation</span>';
+            } else {
+                statusEl.innerHTML = '<span style="color:#dc3545;">✖ No successful deciphering found</span>';
+            }
+
+            // set strength bar
+            setStrengthUI(data.strength, data.strength_label);
+
+            // show findings (quick)
+            const fdiv = document.getElementById("sim-findings");
+            fdiv.innerHTML = `<strong>Entropy:</strong> ${data.entropy}   <strong>Base64-like:</strong> ${data.is_base64}`;
+
+            // show candidates if any
+            if(data.candidates && data.candidates.length){
+                document.getElementById("sim-candidates").style.display = "block";
+                const cl = document.getElementById("cand-list");
+                cl.innerText = "";
+                data.candidates.forEach(c => {
+                    cl.innerText += `--- ${c.type} (score=${c.score}) meta:${c.meta}\n${c.plaintext}\n\n`;
+                });
+            } else {
+                document.getElementById("sim-candidates").style.display = "none";
+            }
+
+            document.getElementById("sim-conclusion").innerText = data.conclusion;
+        }
+    </script>
+</body>
+</html>

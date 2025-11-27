@@ -1,0 +1,239 @@
+/* --- 1. Root Variables & Base Styles (Professional Dark Theme) --- */
+:root {
+    --color-bg-dark: #1E293B;      /* Popup Background (Slightly lighter) */
+    --color-bg-body: #0F172A;      /* Overlay/Input Background (Very dark) */
+    --color-text-light: #E2E8F0;   /* Main Text Color */
+    --color-text-muted: #94A3B8;   /* Labels/Muted Text Color */
+    --color-border-subtle: #334155; /* Borders/Dividers */
+    --color-success: #28a745;      /* Success Green */
+    --color-fail: #dc3545;         /* Fail Red */
+}
+
+body {
+    font-family: "Segoe UI", sans-serif;
+    background: var(--color-bg-body);
+    margin: 0;
+}
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-body);
+}
+
+.popup {
+    width: 700px;
+    background: var(--color-bg-dark);
+    color: var(--color-text-light);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    padding: 30px;
+    animation: pop 0.28s ease;
+}
+
+@keyframes pop {
+    from { transform: scale(.96); opacity: 0 }
+    to { transform: scale(1); opacity: 1 }
+}
+
+/* --- 2. Typography and Header --- */
+.header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+h1 {
+    margin: 0;
+    color: var(--color-text-light);
+    font-size: 24px;
+}
+.lead {
+    margin-top: 6px;
+    color: var(--color-text-muted);
+    font-size: 15px;
+}
+.demo-tag {
+    text-align: right;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+/* --- 3. Input Fields --- */
+.input-group {
+    margin-bottom: 18px;
+}
+label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--color-text-muted);
+    font-size: 14px;
+    font-weight: 500;
+}
+textarea, input[type="text"] {
+    width: 100%;
+    /* Dark theme input styling */
+    background: #0F172A; 
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 8px;
+    padding: 12px;
+    color: var(--color-text-light);
+    font-size: 15px;
+    resize: none;
+    box-sizing: border-box; /* Important for width: 100% to work correctly */
+}
+textarea {
+    height: 90px;
+}
+
+/* --- 4. Controls (Buttons) --- */
+.controls {
+    margin-top: 20px;
+    padding-bottom: 20px; 
+    border-bottom: 1px solid var(--color-border-subtle); 
+}
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 6px;
+    color: white;
+    border: 0;
+    cursor: pointer;
+    margin-right: 10px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+.btn-primary { background: #0078D4; }
+.btn-success { background: var(--color-success); }
+.btn-warning { background: #f59e0b; }
+.btn-primary:hover { background: #0063b1; }
+.btn-success:hover { background: #1e7e34; }
+.btn-warning:hover { background: #d97706; }
+
+/* --- 5. Results and Output Area --- */
+.results-group {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+/* Session ID Styling */
+.session-display {
+    background: #334155; 
+    color: #93C5FD; 
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+/* Main Output Styling */
+.main-output {
+    background: #0F172A; 
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 8px;
+    padding: 15px;
+    min-height: 100px;
+    font-family: monospace;
+    font-size: 14px;
+    color: #4ADE80; /* Ciphertext green */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* Simulation Summary */
+.sim-summary {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--color-border-subtle); 
+}
+.sim-status {
+    font-weight: 700;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+/* --- 6. Progress Bar Styling --- */
+.strength-wrap {
+    margin-top: 15px; 
+    margin-bottom: 15px;
+}
+.strength-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.strength-title {
+    font-size: 14px;
+    color: var(--color-text-muted);
+}
+.strength-percent {
+    font-weight: 700;
+    color: var(--color-text-light);
+}
+
+.progress { 
+    width: 100%; 
+    background: #0F172A; /* Match input background */
+    border-radius: 999px; 
+    height: 18px; 
+    overflow: hidden; 
+    border: 1px solid var(--color-border-subtle);
+}
+
+.progress-bar { 
+    height: 100%; 
+    width: 0%; 
+    background: linear-gradient(90deg, #4ade80, #16a34a); /* Default Green */
+    transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1); /* CRITICAL for smooth animation */
+}
+
+.progress-label { 
+    margin-top: 6px; 
+    font-size: 13px;
+    color: var(--color-text-muted); 
+}
+
+/* --- 7. Findings and Candidates --- */
+.sim-findings {
+    padding-top: 10px;
+    font-size: 14px;
+    color: var(--color-text-light);
+}
+
+.candidates {
+    background: #142031; 
+    border: 1px solid #334155;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+.candidate-header {
+    display: block;
+    margin-bottom: 10px;
+    color: #FACC15; /* Amber for candidates/warning */
+    font-size: 14px;
+}
+.cand-list {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 13px;
+    color: #CBD5E1;
+}
+
+.sim-conclusion {
+    margin-top: 15px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+.small {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--color-border-subtle);
+    font-size: 11px;
+    color: var(--color-text-muted);
+}

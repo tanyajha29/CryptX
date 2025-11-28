@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 8080 
 
 # FIX: CMD ko Shell Form mein badlein takki /bin/sh gunicorn ko dhoondh sake.
-CMD gunicorn --bind 0.0.0.0:8080 CyberX-2:app
+CMD gunicorn --bind 0.0.0.0:8080 CyberX_2:app

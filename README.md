@@ -1,7 +1,5 @@
 # CryptX (CyberX-2)
 
-Minimal README to build and run the CryptX Flask app.
-
 Files:
 - [CyberX-2.py](CyberX-2.py) — main app; exposes Flask [`app`](CyberX-2.py) and DB model [`CipherSession`](CyberX-2.py).
 - [docker-compose.yml](docker-compose.yml) — local Docker stack (Postgres + app).

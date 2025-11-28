@@ -1,49 +1,113 @@
-# CryptX (CyberX-2)
 
-Files:
-- [CyberX-2.py](CyberX-2.py) — main app; exposes Flask [`app`](CyberX-2.py) and DB model [`CipherSession`](CyberX-2.py).
-- [docker-compose.yml](docker-compose.yml) — local Docker stack (Postgres + app).
-- [dockerfile](dockerfile) — image build for the app.
-- [requirements.txt](requirements.txt) — Python deps.
-- [templates/index.html](templates/index.html) — UI.
-- [static/style.css](static/style.css) — styling.
+# 🛡️ CyberX Encryptor: Multi-Cipher Simulation Stack
 
-Key runtime symbols:
-- DB startup wait: [`wait_for_db`](CyberX-2.py)
-- DB init: [`db.create_all`](CyberX-2.py)
-- Encryption/decryption: [`random_multi_encrypt`](CyberX-2.py), [`random_multi_decrypt`](CyberX-2.py)
+CyberX Encryptor is a full-stack, educational application designed to encrypt user messages using a **randomized, layered sequence** of both classical and modern ciphers. It uses **Flask** for the backend, **PostgreSQL** for secure session storage, and is containerized using **Docker Compose** for reliable deployment.
 
-Quick start — Docker (recommended)
-1. From project root run:
-   - docker-compose up --build
-   - or docker-compose up --build -d  (run detached)
-2. Wait for services to be healthy. The frontend is mapped to host port 5000 (compose maps `5000:8080`).
-3. Open http://localhost:5000
+A core feature is the **Attack Simulation** route (`/simulate`), which analyzes the generated ciphertext for common weaknesses using techniques like **Kasiski Examination** (for Vigenère), Brute Force (for Caesar/Rail-Fence), and **entropy analysis** to calculate a **Security Strength Score**.
 
-Notes:
-- The compose file sets DATABASE_URL to: `postgresql://postgres:password123@db:5432/cyberx_db` (service hostname is `db`). See [docker-compose.yml](docker-compose.yml).
-- The app contains a DB retry helper [`wait_for_db`](CyberX-2.py) to handle container race conditions.
+---
 
-Quick start — Local (no Docker)
-1. Create & activate virtualenv:
-   - python -m venv venv
-   - venv\Scripts\activate (Windows) or source venv/bin/activate (macOS/Linux)
-2. Fix `requirements.txt` if it contains comment lines starting with `//` (remove `//` lines).
-3. Install:
-   - pip install -r requirements.txt
-4. Run:
-   - python CyberX-2.py
-5. Open http://127.0.0.1:5000
+## 🚀 Quick Start (Docker Compose)
 
-Troubleshooting
-- "password authentication failed" when running locally: ensure Postgres container uses same password as DATABASE_URL. You can inspect container env or recreate with `POSTGRES_PASSWORD=password123`. See [docker-compose.yml](docker-compose.yml).
-- If app fails because DB not ready, [`wait_for_db`](CyberX-2.py) tries reconnects. Logs printed in container will show retries.
+The easiest way to run the entire application, including the database, is using Docker Compose.
 
-Useful commands
-- docker-compose logs -f
-- docker-compose up --build --force-recreate
-- docker-compose down -v  (remove volumes)
+### Prerequisites
 
-License / Security
-- This project is educational. Do not use for production secrets. Keys and crypto modes here are for demo only. See [`CyberX-2.py`](CyberX-2.py) for implementation details.
+* Docker and Docker Compose installed.
+* Your application files (`CyberX_2.py`, `docker-compose.yml`, `entrypoint.sh`, etc.) must be in the same root directory.
 
+### 1. Build and Run the Stack
+
+Run the following command from your project root directory. The `--build` flag ensures your latest Python files and the crucial `entrypoint.sh` script are included.
+
+```bash
+docker compose up --build
+````
+
+This process will:
+
+1.  Start the **`cyberx-postgres`** database container.
+2.  Start the **`cyberx-app`** container.
+3.  Execute **`entrypoint.sh`** to **wait for the database** and automatically **create the necessary tables** (`cipher_session`) before starting the web server.
+4.  Start the Gunicorn web server.
+
+### 2\. Access the Application
+
+The Flask application is exposed on your host machine's port **5000**.
+
+  * **Open your browser:** `http://localhost:5000`
+
+### 3\. Test the API Endpoints
+
+The application routes handle the core logic:
+
+| Endpoint | Method | Purpose | Example Command |
+| :--- | :--- | :--- | :--- |
+| `/encrypt` | `POST` | Encrypts a message with a random cipher sequence and stores the session. | `curl -X POST http://localhost:5000/encrypt -d "message=Your secret message"` |
+| `/decrypt` | `POST` | Retrieves the ciphertext and keys by `session_id` to decrypt the message. | `curl -X POST http://localhost:5000/decrypt -d "session_id=8CHARID"` |
+| `/simulate`| `POST` | Runs a series of classical attacks and security analysis on the stored ciphertext. | `curl -X POST http://localhost:5000/simulate -d "session_id=8CHARID"` |
+
+-----
+
+## 🏗️ Project Architecture Overview
+
+The application is structured as a two-service stack:
+
+### 1\. `cyberx-app` (Web Service)
+
+  * **Runtime:** Python 3.11-slim base image.
+  * **Dependencies:** `Flask`, `Flask-SQLAlchemy`, `gunicorn`, `psycopg2-binary`, `pycryptodomex`, `numpy`.
+  * **Startup Sequence (Entrypoint):**
+    ```bash
+    # 1. Database Check and Table Creation
+    python -c "from CyberX_2 import db, app; app.app_context().push(); db.create_all()"
+    # 2. Start Web Server
+    exec gunicorn --bind 0.0.0.0:8080 CyberX_2:app
+    ```
+  * **Networking:** Listens on container port `8080`, mapped to host port `5000`.
+
+### 2\. `cyberx-postgres` (Database Service)
+
+  * **Image:** `postgres:latest`.
+  * **Database Name:** `cyberx_db`.
+  * **Persistence:** Uses a named volume (`postgres_data`) for persistent data storage.
+  * **Connection URL (in app):** `postgresql://postgres:password123@db:5432/cyberx_db`. The service name `db` acts as the network hostname.
+
+-----
+
+## 🔐 Cipher and Key Management
+
+The application's core logic is layered encryption, where the sequence of ciphers is randomized.
+
+The **`CipherSession`** model stores the necessary decryption information:
+
+| Column | Type | Purpose |
+| :--- | :--- | :--- |
+| `id` | `VARCHAR(8)` | The unique Session ID (Primary Key). |
+| `ciphertext` | `Text` | The final, layered encrypted message. |
+| `infos_json` | `Text` | A JSON-serialized list containing the cipher sequence, keys (e.g., AES bytes, RSA private key object), and parameters required for decryption. |
+
+## ⚙️ Development and Customization
+
+If you need to make changes to the code or inspect the database state:
+
+1.  **Stop the running containers:**
+    ```bash
+    docker compose down
+    ```
+2.  **Make changes** to any source file (`CyberX_2.py`, `requirements.txt`, etc.).
+3.  **Restart with rebuild** to apply the changes:
+    ```bash
+    docker compose up --build
+    ```
+4.  **Database Inspection:** To directly view the stored data (ciphertext, keys, etc.) from a successful encryption:
+    ```bash
+    docker exec -it cyberx-postgres psql -U postgres -d cyberx_db
+    # Then run this SQL command:
+    SELECT id, ciphertext, infos_json FROM cipher_session;
+    ```
+
+<!-- end list -->
+
+```
+```

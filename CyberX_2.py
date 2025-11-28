@@ -7,16 +7,15 @@ import numpy as np
 import os
 import json
 import re
-import time # <--- NEW IMPORT for database waiting
-
+import secrets
+import time
 # PyCryptodome imports
 from Cryptodome.Cipher import AES, DES, PKCS1_OAEP
 from Cryptodome.PublicKey import RSA
-from Cryptodome.Random import get_random_bytes
-
+from Cryptodome.Random import get_random_bytes # Used for CSPRNG keys/IVs
 # Database import
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.exc import OperationalError # Import OperationalError for retry logic
+from sqlalchemy.exc import OperationalError
 
 app = Flask(__name__)
 
@@ -33,12 +32,11 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# ==================== DATABASE WAIT LOGIC (FIX FOR RACE CONDITION) ====================
+# ==================== DATABASE WAIT LOGIC ====================
 
 def wait_for_db(max_retries=20, delay=2):
     """
     Checks the database connection repeatedly before starting the application.
-    This fixes the Docker 'could not translate host name' race condition.
     """
     if not database_url:
         print("Using SQLite, skipping remote DB wait.")
@@ -48,34 +46,26 @@ def wait_for_db(max_retries=20, delay=2):
 
     for i in range(max_retries):
         try:
-            # Try to establish a connection by executing a simple query
             with app.app_context():
-                # Try to execute a simple statement
                 db.session.execute(db.select(1))
             print("Database connected successfully!")
             return
         except OperationalError as e:
-            # This handles connection failures (e.g., hostname not found, connection refused)
             print(f"Database not ready. Retrying in {delay} second(s)... ({i+1}/{max_retries})")
             time.sleep(delay)
         except Exception as e:
-            # If tables don't exist yet, we can proceed
             if "relation" in str(e) and "does not exist" in str(e):
                 print("Database connected, proceeding to create tables.")
                 return
             print(f"An unexpected error occurred during connection attempt: {e}")
             time.sleep(delay)
 
-    # If it fails after all retries, log the critical failure
     print("CRITICAL ERROR: Database connection failed after multiple retries. Exiting.")
-    # In a production setup, we might raise the error, but here we let the process continue
-    # and hope for a late connection, although it will likely fail later requests.
 
 # Run the database check and create tables when the app initializes (Gunicorn or Local)
-# This block runs only once when Gunicorn loads the app.
 with app.app_context():
     wait_for_db()
-    db.create_all() # Ensure tables are created once DB is ready
+    db.create_all()
 
 # ==================== KEY/INFO SERIALIZATION UTILITIES ====================
 
@@ -138,6 +128,7 @@ class CipherSession(db.Model):
         return f"<CipherSession {self.id}>"
 
 # ==================== Classical Ciphers ====================
+# (Functions remain unchanged)
 
 def caesar_encrypt(text, shift=3):
     result = ""
@@ -264,7 +255,7 @@ def hill_decrypt(text, key_matrix):
         result += chr(int(res[0][0]) + 65) + chr(int(res[1][0]) + 65)
     return result
 
-# ==================== Modern Ciphers ====================
+# ==================== Modern Ciphers (UPGRADED) ====================
 
 def pad(s, block=16):
     pad_len = block - (len(s) % block)
@@ -276,40 +267,111 @@ def unpad(s):
         return s
     # Ensure s is a string before checking the last character
     if isinstance(s, bytes):
-        s = s.decode('latin-1')
+        # We handle this case in AES/DES decrypt, but keeping general utility safe
+        s = s.decode('latin-1') 
 
     pad_char = s[-1]
     pad_len = ord(pad_char)
-    # Basic check to avoid crashing if unpad runs on non-padded data
     if pad_len > len(s):
         return s # Return original if padding looks insane
 
     return s[:-pad_len]
 
+# 🟢 UPGRADED to AES.MODE_CBC
 def aes_encrypt(plaintext):
     key = get_random_bytes(16)
-    cipher = AES.new(key, AES.MODE_ECB)
-    ciphertext = base64.b64encode(cipher.encrypt(pad(plaintext).encode('latin-1'))).decode()
-    return ciphertext, key
+    iv = get_random_bytes(16) # IV size must be 16 bytes for AES-CBC
+    
+    # Use CBC mode with the random IV
+    cipher = AES.new(key, AES.MODE_CBC, iv) 
+    
+    # Pad and encode plaintext
+    padded_plaintext = pad(plaintext).encode('latin-1')
+    
+    ciphertext = cipher.encrypt(padded_plaintext)
+    
+    # CRITICAL: Prepend IV to ciphertext before Base64 encoding
+    encrypted_data = iv + ciphertext
+    
+    # Base64 encode the whole thing
+    return base64.b64encode(encrypted_data).decode('utf-8'), key
 
-def aes_decrypt(ciphertext, key):
-    cipher = AES.new(key, AES.MODE_ECB)
-    # Decode base64, decrypt, and then decode the result before unpadding
-    decrypted_bytes = cipher.decrypt(base64.b64decode(ciphertext))
-    plaintext = unpad(decrypted_bytes.decode('latin-1'))
-    return plaintext
+# 🟢 UPGRADED to AES.MODE_CBC
+def aes_decrypt(ciphertext_b64, key):
+    try:
+        # Base64 decode the IV + Ciphertext
+        encrypted_data = base64.b64decode(ciphertext_b64.encode('utf-8'))
+        
+        # Check if the data is long enough for IV (16) + min block (16)
+        if len(encrypted_data) < 32:
+             raise ValueError("Ciphertext is too short.") 
+             
+        # Extract the IV (first 16 bytes) and the actual ciphertext
+        iv = encrypted_data[:16]
+        ciphertext = encrypted_data[16:]
+        
+        # Use CBC mode with the extracted IV
+        cipher = AES.new(key, AES.MODE_CBC, iv) 
+        
+        decrypted_bytes = cipher.decrypt(ciphertext)
+        
+        # Unpad and decode
+        plaintext = unpad(decrypted_bytes.decode('latin-1'))
+        return plaintext
+    except ValueError as e:
+        print(f"AES Decryption (CBC) Error: {e}")
+        return ""
+    except Exception as e:
+        print(f"AES Decryption (CBC) Error: {e}")
+        return ""
 
+# 🟢 UPGRADED to DES.MODE_CBC
 def des_encrypt(plaintext):
     key = get_random_bytes(8)
-    cipher = DES.new(key, DES.MODE_ECB)
-    ciphertext = base64.b64encode(cipher.encrypt(pad(plaintext,8).encode('latin-1'))).decode()
-    return ciphertext, key
+    iv = get_random_bytes(8) # IV size must be 8 bytes for DES-CBC
+    
+    # Use CBC mode with the random IV
+    cipher = DES.new(key, DES.MODE_CBC, iv) 
+    
+    # Pad and encode plaintext (using block size 8)
+    padded_plaintext = pad(plaintext, 8).encode('latin-1') 
+    
+    ciphertext = cipher.encrypt(padded_plaintext)
+    
+    # CRITICAL: Prepend IV to ciphertext before Base64 encoding
+    encrypted_data = iv + ciphertext
+    
+    # Base64 encode the whole thing
+    return base64.b64encode(encrypted_data).decode('utf-8'), key
 
-def des_decrypt(ciphertext, key):
-    cipher = DES.new(key, DES.MODE_ECB)
-    decrypted_bytes = cipher.decrypt(base64.b64decode(ciphertext))
-    plaintext = unpad(decrypted_bytes.decode('latin-1'))
-    return plaintext
+# 🟢 UPGRADED to DES.MODE_CBC
+def des_decrypt(ciphertext_b64, key):
+    try:
+        # Base64 decode the IV + Ciphertext
+        encrypted_data = base64.b64decode(ciphertext_b64.encode('utf-8'))
+        
+        # Check if the data is long enough for IV (8) + min block (8)
+        if len(encrypted_data) < 16: 
+             raise ValueError("Ciphertext is too short.")
+             
+        # Extract the IV (first 8 bytes) and the actual ciphertext
+        iv = encrypted_data[:8]
+        ciphertext = encrypted_data[8:]
+        
+        # Use CBC mode with the extracted IV
+        cipher = DES.new(key, DES.MODE_CBC, iv) 
+        
+        decrypted_bytes = cipher.decrypt(ciphertext)
+        
+        # Unpad and decode
+        plaintext = unpad(decrypted_bytes.decode('latin-1'))
+        return plaintext
+    except ValueError as e:
+        print(f"DES Decryption (CBC) Error: {e}")
+        return ""
+    except Exception as e:
+        print(f"DES Decryption (CBC) Error: {e}")
+        return ""
 
 def rsa_generate_keys():
     key = RSA.generate(2048)
@@ -391,14 +453,16 @@ def random_multi_decrypt(ciphertext, infos_json):
         elif name == "Monoalphabetic":
             ciphertext = monoalphabetic_decrypt(ciphertext, key[1])
         elif name == "AES":
-            ciphertext = aes_decrypt(ciphertext, key)
+            # The decrypt functions are now named with _b64 argument internally
+            ciphertext = aes_decrypt(ciphertext, key) 
         elif name == "DES":
+            # The decrypt functions are now named with _b64 argument internally
             ciphertext = des_decrypt(ciphertext, key)
         elif name == "RSA":
             ciphertext = rsa_decrypt(ciphertext, key)
     return ciphertext
 
-# ==================== ATTACK HELPERS (UPDATED) ====================
+# ==================== ATTACK HELPERS (unchanged) ====================
 
 # Improved Common Word List
 COMMON_WORDS = {
@@ -444,7 +508,7 @@ def attack_rail_fence(ciphertext):
             continue
     return best
 
-# ==================== VIGENERE KASISKI ATTACK (NEW) ====================
+# ==================== VIGENERE KASISKI ATTACK ====================
 
 def gcd(a, b):
     while b:
@@ -546,7 +610,7 @@ def attack_vigenere(ciphertext):
 
     return {"key_length": key_length, "key": key, "plaintext": plaintext, "score": score}
 
-# ==================== UTILITY FUNCTIONS (unchanged) ====================
+# ==================== UTILITY FUNCTIONS ====================
 def is_base64(s):
     try:
         # Check if the length is a multiple of 4, a requirement for standard base64
@@ -571,10 +635,11 @@ def entropy(s):
     return ent
 
 def generate_session_id(length=8):
+    """Generates a secure, random session ID using secrets module."""
     chars = string.ascii_letters + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
-
-# ==================== Flask Routes (UPDATED) ====================
+    # CRITICAL CHANGE: Use secrets.choice for cryptographic strength
+    return ''.join(secrets.choice(chars) for _ in range(length))
+# ==================== Flask Routes ====================
 
 @app.route("/")
 def index():
@@ -590,8 +655,7 @@ def encrypt():
 
     session_id = generate_session_id()
 
-    with db.session.begin(): # Use db.session.begin() for atomic transaction
-        # FIX: Changed to db.session.get()
+    with db.session.begin(): 
         while db.session.get(CipherSession, session_id):
             session_id = generate_session_id()
 
@@ -601,7 +665,6 @@ def encrypt():
             infos_json=serialize_info(infos)
         )
         db.session.add(new_session)
-        # commit is done automatically by db.session.begin() context manager
 
     return jsonify({"result": cipher, "session_id": session_id})
 
@@ -613,7 +676,6 @@ def decrypt():
         return jsonify({"result": "Error: Session ID is required for decryption."}), 400
 
     with app.app_context():
-        # FIX: Changed to db.session.get()
         session_data = db.session.get(CipherSession, session_id)
 
     if session_data is None:
@@ -625,7 +687,9 @@ def decrypt():
     try:
         plain = random_multi_decrypt(ciphertext, infos_json)
     except Exception as e:
-        return jsonify({"result": f"Error during decryption: {e}"}), 500
+        # Print the error for debugging, but return a general error to the user
+        print(f"Decryption failed: {e}")
+        return jsonify({"result": "Error during decryption. The session may be corrupted or the key is wrong."}), 500
 
     return jsonify({"result": plain})
 
@@ -637,7 +701,6 @@ def simulate():
         return jsonify({"status": "error", "message": "Session ID is required for simulation."}), 400
 
     with app.app_context():
-        # FIX: Changed to db.session.get()
         session_data = db.session.get(CipherSession, session_id)
 
     if session_data is None:
@@ -650,7 +713,6 @@ def simulate():
     # run attacks
     caesar_attack = attack_caesar(c)
     rail_attack = attack_rail_fence(c)
-    # 💥 NEW: Run Vigenere attack
     vigenere_attack = attack_vigenere(c)
 
     # collect candidate plaintexts if they look promising
@@ -677,7 +739,7 @@ def simulate():
             "meta": f"rails={rail_attack['rails']}"
         })
 
-    # 💥 NEW: Check Vigenere attack success
+    # Check Vigenere attack success
     if vigenere_attack["score"] >= SCORE_THRESHOLD and vigenere_attack["key_length"] > 1:
         success = True
         candidates.append({
@@ -700,7 +762,7 @@ def simulate():
     # Penalty calculation now accounts for Vigenere
     if caesar_attack["score"] >= SCORE_THRESHOLD: penalty += 1
     if rail_attack["score"] >= SCORE_THRESHOLD: penalty += 1
-    if vigenere_attack["score"] >= SCORE_THRESHOLD and vigenere_attack["key_length"] > 1: penalty += 1
+    if vigenere_attack["score"] >= SCORE_THRESHOLD: penalty += 1
 
     # Scale penalty based on number of successful attacks
     strength_value = int(max(0, min(100, base_strength - penalty * 15))) # Reduced penalty impact
@@ -740,7 +802,7 @@ def simulate():
                 "success": rail_attack["score"] >= SCORE_THRESHOLD,
                 "score": round(rail_attack["score"], 3)
             },
-            # 💥 NEW: Vigenere finding
+            # Vigenere finding
             {
                 "type": "Vigenere",
                 "success": vigenere_attack["score"] >= SCORE_THRESHOLD,

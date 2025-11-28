@@ -1,17 +1,22 @@
 /* --- 1. Root Variables & Base Styles (Professional Dark Theme) --- */
 :root {
     --color-bg-dark: #1E293B;      /* Popup Background (Slightly lighter) */
-    --color-bg-body: #0F172A;      /* Overlay/Input Background (Very dark) */
+    --color-bg-body: #0F172A;      /* Very dark for deep background */
     --color-text-light: #E2E8F0;   /* Main Text Color */
     --color-text-muted: #94A3B8;   /* Labels/Muted Text Color */
     --color-border-subtle: #334155; /* Borders/Dividers */
-    --color-success: #28a745;      /* Success Green */
-    --color-fail: #dc3545;         /* Fail Red */
+    --color-primary: #3b82f6;      /* Blue */
+    --color-success: #22c55e;      /* Success Green (for Decrypt) */
+    --color-warning: #f59e0b;      /* Warning Amber (for Simulate) */
+    --color-fail: #ef4444;         /* Fail Red (for weak cipher indication) */
 }
 
+/* CRITICAL: GIF Background Integration */
 body {
     font-family: "Segoe UI", sans-serif;
-    background: var(--color-bg-body);
+    /* GIF implementation (change 'background.jpg' to your filename) */
+    background: url('background.gif') no-repeat center center fixed; 
+    background-size: cover;
     margin: 0;
 }
 
@@ -21,153 +26,139 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-bg-body);
+    /* CRITICAL: Use high opacity dark background to make GIF subtle and text readable */
+    background: rgba(46, 68, 118, 0.95); 
+    padding: 20px; /* Responsive padding */
 }
 
 .popup {
-    width: 700px;
+    /* CRITICAL: Responsive width */
+    max-width: 700px; 
+    width: 100%;       
     background: var(--color-bg-dark);
     color: var(--color-text-light);
     border-radius: 16px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
     padding: 30px;
-    animation: pop 0.28s ease;
-}
-
-@keyframes pop {
-    from { transform: scale(.96); opacity: 0 }
-    to { transform: scale(1); opacity: 1 }
+    overflow-y: auto; /* Scroll for smaller screens if content is tall */
+    max-height: 95vh; /* Never let popup exceed viewport height */
 }
 
 /* --- 2. Typography and Header --- */
+h1 {
+    font-size: 26px;
+    margin: 0 0 5px 0;
+    font-weight: 800;
+}
+.lead {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    margin-top: 0;
+}
 .header-section {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--color-border-subtle);
+    padding-bottom: 15px;
     margin-bottom: 20px;
 }
-h1 {
-    margin: 0;
-    color: var(--color-text-light);
-    font-size: 24px;
-}
-.lead {
-    margin-top: 6px;
-    color: var(--color-text-muted);
-    font-size: 15px;
-}
 .demo-tag {
-    text-align: right;
+    background: #4C516A;
+    color: var(--color-text-light);
+    padding: 4px 10px;
+    border-radius: 4px;
     font-size: 12px;
-    color: var(--color-text-muted);
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 /* --- 3. Input Fields --- */
 .input-group {
-    margin-bottom: 18px;
+    margin-bottom: 15px;
 }
 label {
     display: block;
-    margin-bottom: 6px;
+    font-size: 13px;
     color: var(--color-text-muted);
-    font-size: 14px;
-    font-weight: 500;
+    margin-bottom: 5px;
 }
-textarea, input[type="text"] {
+input[type="text"], textarea {
     width: 100%;
-    /* Dark theme input styling */
-    background: #0F172A; 
+    padding: 10px;
     border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
-    padding: 12px;
+    background: var(--color-bg-body);
     color: var(--color-text-light);
-    font-size: 15px;
-    resize: none;
-    box-sizing: border-box; /* Important for width: 100% to work correctly */
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 14px;
+    resize: vertical;
 }
 textarea {
-    height: 90px;
+    min-height: 80px;
 }
 
 /* --- 4. Controls (Buttons) --- */
 .controls {
-    margin-top: 20px;
-    padding-bottom: 20px; 
-    border-bottom: 1px solid var(--color-border-subtle); 
-}
-.btn {
-    display: inline-block;
-    padding: 10px 20px;
-    border-radius: 6px;
-    color: white;
-    border: 0;
-    cursor: pointer;
-    margin-right: 10px;
-    font-weight: 600;
-    transition: background 0.2s;
-}
-.btn-primary { background: #0078D4; }
-.btn-success { background: var(--color-success); }
-.btn-warning { background: #f59e0b; }
-.btn-primary:hover { background: #0063b1; }
-.btn-success:hover { background: #1e7e34; }
-.btn-warning:hover { background: #d97706; }
-
-/* --- 5. Results and Output Area --- */
-.results-group {
-    margin-top: 20px;
+    display: flex; 
+    gap: 10px;    
+    flex-wrap: wrap; 
+    margin-top: 10px;
     margin-bottom: 20px;
 }
-
-/* Session ID Styling */
-.session-display {
-    background: #334155; 
-    color: #93C5FD; 
+.btn {
+    flex-grow: 1; /* Key for responsiveness */
+    min-width: 120px;
     padding: 10px 15px;
+    border: none;
     border-radius: 6px;
+    cursor: pointer;
     font-weight: 600;
-    margin-bottom: 15px;
-    font-size: 14px;
+    transition: background-color 0.2s;
+    color: #fff;
+}
+.btn-primary {
+    background: var(--color-primary);
+}
+.btn-success {
+    background: var(--color-success);
+}
+.btn-warning {
+    background: var(--color-warning);
+}
+.btn:hover {
+    filter: brightness(1.1);
 }
 
-/* Main Output Styling */
+/* --- 5. Output Area --- */
+.main-output-area {
+    margin-bottom: 20px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border-subtle);
+}
 .main-output {
-    background: #0F172A; 
-    border: 1px solid var(--color-border-subtle);
-    border-radius: 8px;
+    min-height: 60px;
+    background: var(--color-bg-body);
+    border: 1px dashed var(--color-border-subtle);
     padding: 15px;
-    min-height: 100px;
+    border-radius: 6px;
     font-family: monospace;
     font-size: 14px;
-    color: #4ADE80; /* Ciphertext green */
+    word-break: break-all;
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    color: var(--color-text-light);
 }
 
-/* Simulation Summary */
-.sim-summary {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px dashed var(--color-border-subtle); 
-}
-.sim-status {
-    font-weight: 700;
-    margin-bottom: 15px;
-    font-size: 18px;
-}
-
-/* --- 6. Progress Bar Styling --- */
-.strength-wrap {
-    margin-top: 15px; 
-    margin-bottom: 15px;
+/* --- 6. Simulation Results (Strength Meter) --- */
+.simulation-results hr {
+    border: none;
+    border-top: 1px solid var(--color-border-subtle);
+    margin: 20px 0;
 }
 .strength-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
     margin-bottom: 5px;
-}
-.strength-title {
     font-size: 14px;
     color: var(--color-text-muted);
 }
@@ -178,7 +169,7 @@ textarea {
 
 .progress { 
     width: 100%; 
-    background: #0F172A; /* Match input background */
+    background: #0F172A; 
     border-radius: 999px; 
     height: 18px; 
     overflow: hidden; 
@@ -188,8 +179,8 @@ textarea {
 .progress-bar { 
     height: 100%; 
     width: 0%; 
-    background: linear-gradient(90deg, #4ade80, #16a34a); /* Default Green */
-    transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1); /* CRITICAL for smooth animation */
+    background: linear-gradient(90deg, #4ade80, #16a34a); 
+    transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .progress-label { 
@@ -205,35 +196,81 @@ textarea {
     color: var(--color-text-light);
 }
 
-.candidates {
-    background: #142031; 
-    border: 1px solid #334155;
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 15px;
-}
-.candidate-header {
-    display: block;
-    margin-bottom: 10px;
-    color: #FACC15; /* Amber for candidates/warning */
-    font-size: 14px;
-}
-.cand-list {
-    white-space: pre-wrap;
-    font-family: monospace;
+.sim-attack-list {
+    margin-top: 10px;
+    display: flex; 
+    flex-wrap: wrap;
+    gap: 15px; /* Spacing between score items */
     font-size: 13px;
-    color: #CBD5E1;
+    color: var(--color-text-light);
+}
+.sim-attack-score {
+    /* Keep this inline for wrapping */
 }
 
-.sim-conclusion {
+
+.candidates {
+    background: #142031; 
+    border: 1px solid var(--color-border-subtle);
+    border-radius: 6px;
     margin-top: 15px;
-    font-size: 13px;
-    color: var(--color-text-muted);
+    padding: 10px;
 }
-.small {
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid var(--color-border-subtle);
-    font-size: 11px;
+.candidates h3 {
+    margin-top: 0;
+    font-size: 16px;
+    color: var(--color-warning);
+    border-bottom: 1px solid var(--color-border-subtle);
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+}
+.candidates pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 12px;
     color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* --- 8. Media Query for Mobile Responsiveness --- */
+@media (max-width: 768px) {
+    /* Tablet/Mobile adjustments */
+    .popup {
+        padding: 20px;
+        border-radius: 0; /* Full screen on very small devices */
+    }
+}
+
+@media (max-width: 576px) {
+    /* Small Mobile adjustments */
+    .header-section {
+        flex-direction: column; /* Stack header items */
+        align-items: flex-start;
+    }
+    
+    .demo-tag {
+        margin-top: 8px;
+        text-align: left;
+    }
+
+    .main-output {
+        min-height: 80px; 
+        font-size: 12px;
+    }
+
+    /* Make buttons stack vertically if they don't fit */
+    .controls {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .btn {
+        min-width: unset; /* Remove min-width to allow full stacking */
+    }
+
+    .sim-attack-list {
+        /* Allow attack scores to wrap nicely */
+        gap: 8px;
+        font-size: 12px;
+    }
 }

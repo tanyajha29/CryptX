@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>Secure Encryptor — Popup</title>
+    <title>Secure Encryptor — CyberX 2.0</title>
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     </head>
@@ -12,7 +12,7 @@
             <div class="header-section">
                 <div>
                     <h1>Secure Encryptor</h1>
-                    <p class="lead">Encrypt messages with randomized ciphers and simulate simple attacks.</p>
+                    <p class="lead">Encrypt messages with **randomized, multi-layered ciphers** and simulate advanced attacks.</p>
                 </div>
                 <div class="demo-tag">Demo simulation</div>
             </div>
@@ -33,167 +33,158 @@
                 <button class="btn btn-warning" onclick="doSimulate()">Simulate Attack</button>
             </div>
 
-            <div class="results-group">
-                <div id="session-output" class="session-display" style="display:none;"></div>
-                
-                <div id="output" class="main-output">Result will appear here...</div>
-
-                <div id="sim-summary" class="sim-summary" style="display:none;">
-                    <div id="sim-status" class="sim-status"></div>
-
-                    <div class="strength-wrap">
-                        <div class="strength-header">
-                            <div class="strength-title">Security Strength</div>
-                            <div id="strength-percent" class="strength-percent">0%</div>
-                        </div>
-                        <div class="progress" aria-hidden="true">
-                            <div id="strength-bar" class="progress-bar" style="width:0%"></div>
-                        </div>
-                        <div class="progress-label" id="strength-label"></div>
-                    </div>
-
-                    <div id="sim-findings" class="sim-findings"></div>
-
-                    <div id="sim-attack-list" class="sim-attack-list"></div>
-
-                    <div id="sim-candidates" class="candidates" style="display:none;">
-                        <strong class="candidate-header">Recovered candidate plaintext(s):</strong>
-                        <div id="cand-list" class="cand-list"></div>
-                    </div>
-
-                    <div id="sim-conclusion" class="sim-conclusion"></div>
-                </div>
+            <div class="main-output-area">
+                <div class="main-output" id="main-output">Awaiting action...</div>
             </div>
 
-            <div class="small">Tip: Simulation attempts simple classical attacks (Caesar, Rail-Fence, & Vigenère) and provides an educational strength estimate. Modern ciphers are not broken here.</div>
+            <div class="simulation-results" id="sim-results" style="display: none;">
+                <hr>
+                <div class="strength-meter">
+                    <div class="strength-header">
+                        <span class="strength-percent" id="strength-percent">0%</span>
+                        <span class="strength-label" id="strength-label">Weak</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <p class="progress-label" id="sim-conclusion">Run simulation to analyze ciphertext strength...</p>
+                </div>
+                
+                <div class="sim-findings" id="sim-findings"></div>
+                <div class="sim-attack-list" id="sim-attack-list"></div>
+
+                <div class="candidates" id="sim-candidates" style="display: none;">
+                    <h3>Brute-Force Candidates Found:</h3>
+                    <pre id="cand-list"></pre>
+                </div>
+            </div>
         </div>
     </div>
-
+    
     <script>
-        // --- Session & Input Functions ---
-        async function doEncrypt(){
-            const msg = document.getElementById("message").value;
-            const form = new URLSearchParams();
-            form.append("message", msg);
-            
-            document.getElementById("output").innerText = "Encrypting...";
-            document.getElementById("session-output").style.display = "none";
-            document.getElementById("sim-summary").style.display = "none";
+        // Utility Functions (Keep them simple)
+        const getSessionID = () => document.getElementById("session_id").value.trim();
+        const getMessage = () => document.getElementById("message").value;
+        const setOutput = (text, isError = false) => {
+            const output = document.getElementById("main-output");
+            output.innerText = text;
+            output.style.color = isError ? 'var(--color-fail)' : 'var(--color-text-light)';
+        };
 
-            const r = await fetch("/encrypt", { method:"POST", body: form });
-            const data = await r.json();
-            
-            if(r.ok){
-                document.getElementById("output").innerText = "Ciphertext:\n" + data.result;
-                // Capture and set session ID
-                document.getElementById("session_id").value = data.session_id;
-                const sessOut = document.getElementById("session-output");
-                sessOut.innerText = `SESSION ID: ${data.session_id}`;
-                sessOut.style.display = "block";
+        const setStrengthUI = (strength, label) => {
+            const bar = document.getElementById("progress-bar");
+            const percent = document.getElementById("strength-percent");
+            const sLabel = document.getElementById("strength-label");
+
+            bar.style.width = `${strength}%`;
+            percent.innerText = `${strength}%`;
+            sLabel.innerText = label;
+
+            if (strength >= 80) {
+                bar.style.background = 'linear-gradient(90deg, #4ade80, #16a34a)'; // Strong
+            } else if (strength >= 50) {
+                bar.style.background = 'linear-gradient(90deg, #FACC15, #B45309)'; // Medium (Amber)
             } else {
-                document.getElementById("output").innerText = "Encryption Error: " + data.result;
+                bar.style.background = 'linear-gradient(90deg, #F87171, #B91C1C)'; // Weak (Red)
             }
-        }
+        };
 
-        async function doDecrypt(){
-            // Send Session ID for Decrypt
-            const session_id = document.getElementById("session_id").value;
-            const form = new URLSearchParams();
-            form.append("session_id", session_id);
-            
-            document.getElementById("output").innerText = "Decrypting...";
-            document.getElementById("sim-summary").style.display = "none";
-
-            const r = await fetch("/decrypt", { method:"POST", body: form });
-            const data = await r.json();
-            
-            if(r.ok){
-                document.getElementById("output").innerText = "Plaintext:\n" + data.result;
-            } else {
-                document.getElementById("output").innerText = "Decryption Error: " + data.result;
-            }
-        }
-        
-        // Crash-Proof setStrengthUI function
-        function setStrengthUI(strength, label) {
-            const bar = document.getElementById("strength-bar"); 
-            const pct = Math.max(0, Math.min(100, strength));
-            
-            document.getElementById("strength-percent").innerText = pct + "%";
-            document.getElementById("strength-label").innerText = label;
-
-            if (bar) { 
-                bar.style.width = pct + "%";
-
-                // color gradient change depending on strength
-                if(pct >= 80){
-                    bar.style.background = "linear-gradient(90deg, #34d399, #10b981)"; // green
-                } else if(pct >= 50){
-                    bar.style.background = "linear-gradient(90deg, #fbbf24, #f97316)"; // amber
-                } else {
-                    bar.style.background = "linear-gradient(90deg, #f87171, #ef4444)"; // red
-                }
-            }
-        }
-
-        async function doSimulate(){
-            // Send Session ID for Simulate
-            const session_id = document.getElementById("session_id").value;
-            const form = new URLSearchParams();
-            form.append("session_id", session_id);
-            
-            document.getElementById("output").innerText = "Simulating attack...";
-            document.getElementById("sim-summary").style.display = "none";
-
-            const r = await fetch("/simulate", { method:"POST", body: form });
-            const data = await r.json();
-            
-            if(data.status !== "ok"){
-                document.getElementById("output").innerText = data.message || "Simulation error";
-                return;
-            }
-
-            // show summary area
-            document.getElementById("sim-summary").style.display = "block";
-            
-            // status
-            const statusEl = document.getElementById("sim-status");
-            if(data.success){
-                statusEl.innerHTML = '<span style="color:#28a745;">✔ Successfully Deciphered by simulation</span>';
-            } else {
-                statusEl.innerHTML = '<span style="color:#dc3545;">✖ No successful deciphering found</span>';
-            }
-
-            // set strength bar
-            setStrengthUI(data.strength, data.strength_label);
-
-            // show findings (quick)
-            const fdiv = document.getElementById("sim-findings");
-            fdiv.innerHTML = `<strong>Entropy:</strong> ${data.entropy}   <strong>Base64-like:</strong> ${data.is_base64}`;
-
-            // NEW: Display individual attack scores
-            const al = document.getElementById("sim-attack-list");
-            al.innerHTML = '<strong>Attack Scores:</strong>';
-            data.findings.forEach(f => {
-                const color = f.success ? '#28a745' : '#6c757d';
-                al.innerHTML += `<div style="display:inline-block; margin-right: 15px;">${f.type}: <span style="color:${color};">Score ${f.score}</span></div>`;
-            });
-
-
-            // show candidates if any
-            if(data.candidates && data.candidates.length){
-                document.getElementById("sim-candidates").style.display = "block";
-                const cl = document.getElementById("cand-list");
-                cl.innerText = "";
-                data.candidates.forEach(c => {
-                    cl.innerText += `--- ${c.type} (score=${c.score}) meta:${c.meta}\n${c.plaintext}\n\n`;
+        const fetchData = async (endpoint, data) => {
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams(data).toString()
                 });
-            } else {
-                document.getElementById("sim-candidates").style.display = "none";
-            }
 
-            document.getElementById("sim-conclusion").innerText = data.conclusion;
-        }
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.result || result.message || `Error ${response.status}`);
+                }
+                return result;
+            } catch (error) {
+                setOutput(`Operation Failed: ${error.message}`, true);
+                return null;
+            }
+        };
+
+        // Main Actions
+        const doEncrypt = async () => {
+            const message = getMessage();
+            if (!message) return setOutput("Error: Message is required for encryption.", true);
+            
+            setOutput("Encrypting...", false);
+            const data = await fetchData('/encrypt', { message });
+            
+            if (data) {
+                document.getElementById("session_id").value = data.session_id;
+                setOutput(data.result);
+                document.getElementById("sim-results").style.display = "none";
+                document.getElementById("message").value = message; // Keep original message
+            }
+        };
+
+        const doDecrypt = async () => {
+            const session_id = getSessionID();
+            if (!session_id) return setOutput("Error: Session ID is required for decryption.", true);
+            
+            setOutput("Decrypting...", false);
+            const data = await fetchData('/decrypt', { session_id });
+            
+            if (data) {
+                setOutput(data.result);
+                document.getElementById("message").value = data.result;
+                document.getElementById("sim-results").style.display = "none";
+            }
+        };
+
+        const doSimulate = async () => {
+            const session_id = getSessionID();
+            if (!session_id) return setOutput("Error: Session ID is required for simulation.", true);
+
+            setOutput("Running multi-layered attack simulation...", false);
+            document.getElementById("sim-results").style.display = "block";
+            
+            const data = await fetchData('/simulate', { session_id });
+
+            if (data && data.status === "ok") {
+                setOutput(`Simulation Complete. Strength: ${data.strength_label}`, false);
+                
+                // Set strength bar
+                setStrengthUI(data.strength, data.strength_label);
+
+                // show findings (quick)
+                const fdiv = document.getElementById("sim-findings");
+                fdiv.innerHTML = `<strong>Entropy:</strong> ${data.entropy}   <strong>Base64-like:</strong> ${data.is_base64}`;
+
+                // NEW: Display individual attack scores
+                const al = document.getElementById("sim-attack-list");
+                al.innerHTML = '<strong>Attack Scores (Direct Layer):</strong>';
+                data.findings.forEach(f => {
+                    const color = f.success ? '#ef4444' : '#22c55e'; // Invert colors to show success as fail (weakness)
+                    al.innerHTML += `<div class="sim-attack-score">${f.type}: <span style="color:${color};">Score ${f.score}</span></div>`;
+                });
+
+
+                // show candidates if any
+                if(data.candidates && data.candidates.length){
+                    document.getElementById("sim-candidates").style.display = "block";
+                    const cl = document.getElementById("cand-list");
+                    cl.innerText = "";
+                    data.candidates.forEach(c => {
+                        cl.innerText += `--- ${c.type} (score=${c.score}) meta:${c.meta}\n${c.plaintext}\n\n`;
+                    });
+                } else {
+                    document.getElementById("sim-candidates").style.display = "none";
+                }
+
+                document.getElementById("sim-conclusion").innerText = data.conclusion;
+
+            } else if (data) {
+                 setOutput(`Simulation Error: ${data.message}`, true);
+                 document.getElementById("sim-results").style.display = "none";
+            }
+        };
     </script>
 </body>
 </html>

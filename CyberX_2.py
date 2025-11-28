@@ -390,39 +390,67 @@ def rsa_decrypt(ciphertext, private_key):
     plaintext = cipher.decrypt(base64.b64decode(ciphertext)).decode()
     return plaintext
 
-# ==================== Multi-Cipher System (unchanged) ====================
+
+# ==================== Multi-Cipher System (UPGRADED with KDF) ====================
 
 def random_multi_encrypt(text):
     classical = ["Caesar", "Vigenere", "RailFence", "Hill", "Monoalphabetic"]
     modern = ["AES", "DES", "RSA"]
+    
+    # 🟢 CRITICAL CHANGE 1: Generate a Master Seed (32 bytes)
+    master_seed = get_random_bytes(32)
+    # Master seed is the ultimate secret, stored as the first item in infos
+    infos = [("MASTER_SEED", master_seed)]
+    
     num_classical = random.randint(1, 3)
     num_modern = random.randint(1, 2)
     classical_sequence = random.sample(classical, num_classical)
     modern_sequence = random.sample(modern, num_modern)
-    infos = []
+    
     ciphertext = text
+    
     # Classical first
-    for chosen in classical_sequence:
+    for i, chosen in enumerate(classical_sequence):
+        # Derive a key unique to this cipher and its position in the sequence (i)
+        # 🟢 CRITICAL CHANGE 2: Use KDF for deterministic, random-looking keys
+        
+        purpose = f"{chosen}_KEY_{i}" # Unique identifier for salt
+        
         if chosen == "Caesar":
-            ciphertext = caesar_encrypt(ciphertext, 3)
-            infos.append(("Caesar", 3))
+            # Caesar shift 1-25. Derive a 4-byte key, take the first byte, and modulo 25+1
+            key_bytes = derive_key(master_seed, purpose, 4)
+            shift = int.from_bytes(key_bytes, byteorder='big') % 25 + 1 
+            ciphertext = caesar_encrypt(ciphertext, shift)
+            infos.append(("Caesar", shift))
+            
         elif chosen == "Vigenere":
-            ciphertext = vigenere_encrypt(ciphertext, "KEY")
-            infos.append(("Vigenere", "KEY"))
+            # Vigenere key length 5-10. Derive a 10-byte key, convert to a word.
+            key_len = random.randint(5, 10)
+            key_bytes = derive_key(master_seed, purpose, key_len)
+            key = ''.join(string.ascii_uppercase[b % 26] for b in key_bytes)
+            ciphertext = vigenere_encrypt(ciphertext, key)
+            infos.append(("Vigenere", key))
+            
         elif chosen == "RailFence":
-            ciphertext = rail_fence_encrypt(ciphertext, 3)
-            infos.append(("RailFence", 3))
+            # RailFence rails 2-7.
+            key_bytes = derive_key(master_seed, purpose, 4)
+            rails = int.from_bytes(key_bytes, byteorder='big') % 6 + 2
+            ciphertext = rail_fence_encrypt(ciphertext, rails)
+            infos.append(("RailFence", rails))
+            
         elif chosen == "Hill":
-            # For Hill, ensuring a matrix with an inverse mod 26 can be complex.
-            # Use a simple, known-good key for this demo.
+            # Hill key remains fixed for now, as dynamic generation is complex (needs invertible matrix)
             key_matrix = np.array([[3, 3], [2, 5]])
             ciphertext = hill_encrypt(ciphertext, key_matrix)
             infos.append(("Hill", key_matrix))
+            
         elif chosen == "Monoalphabetic":
+            # Monoalphabetic key is too complex for KDF derivation, stick to random shuffle
             key_map, rev_map = monoalphabetic_generate_key()
             ciphertext = monoalphabetic_encrypt(ciphertext, key_map)
             infos.append(("Monoalphabetic", (key_map, rev_map)))
-    # Modern next
+            
+    # Modern next (AES/DES keys are already randomly generated inside their functions)
     for chosen in modern_sequence:
         if chosen == "AES":
             ciphertext, key = aes_encrypt(ciphertext)
@@ -433,35 +461,75 @@ def random_multi_encrypt(text):
         elif chosen == "RSA":
             priv, pub = rsa_generate_keys()
             ciphertext = rsa_encrypt(ciphertext, pub)
-            # We store the private key for decryption
             infos.append(("RSA", priv))
+            
     return ciphertext, infos
+
+
+
+
+# ==================== Multi-Cipher System (UPGRADED with KDF) ====================
 
 def random_multi_decrypt(ciphertext, infos_json):
     # Deserialize the complex keys/info list first
     infos = deserialize_info(infos_json)
+    
+    # 🟢 CRITICAL CHANGE 1: Extract the Master Seed
+    if infos and infos[0][0] == "MASTER_SEED":
+        master_seed = infos[0][1]
+        infos = infos[1:] # Remove master seed from the list of ciphers
+    else:
+        # Fallback (should not happen if encryption worked)
+        raise ValueError("Decryption failed: Master Seed not found in session data.")
 
-    for name, key in reversed(infos):
-        if name == "Caesar":
-            ciphertext = caesar_decrypt(ciphertext, key)
-        elif name == "Vigenere":
-            ciphertext = vigenere_decrypt(ciphertext, key)
-        elif name == "RailFence":
-            ciphertext = rail_fence_decrypt(ciphertext, key)
+    # Decrypt in reverse order
+    for i, (name, original_key) in reversed(list(enumerate(infos))):
+        
+        if name in ["Caesar", "Vigenere", "RailFence"]:
+            # 🟢 CRITICAL CHANGE 2: Re-derive the classical key using Master Seed (only for Vigenere, Caesar, RailFence)
+            
+            # The purpose string must exactly match the one used during encryption
+            purpose = f"{name}_KEY_{i}"
+            
+            # Since Hill and Monoalphabetic keys are stored directly, we use the original_key for them.
+            # Only Vigenere, Caesar, and RailFence keys were derived in random_multi_encrypt
+
+            if name == "Caesar":
+                # KDF key derivation logic must be repeated to get the *same* key
+                key_bytes = derive_key(master_seed, purpose, 4)
+                shift = int.from_bytes(key_bytes, byteorder='big') % 25 + 1 
+                ciphertext = caesar_decrypt(ciphertext, shift)
+                
+            elif name == "Vigenere":
+                key = original_key # The key (string) is stored, so use the original key directly.
+                ciphertext = vigenere_decrypt(ciphertext, key)
+                
+            elif name == "RailFence":
+                key_bytes = derive_key(master_seed, purpose, 4)
+                rails = int.from.bytes(key_bytes, byteorder='big') % 6 + 2
+                ciphertext = rail_fence_decrypt(ciphertext, rails)
+
         elif name == "Hill":
-            ciphertext = hill_decrypt(ciphertext, key)
+            ciphertext = hill_decrypt(ciphertext, original_key)
+            
         elif name == "Monoalphabetic":
-            ciphertext = monoalphabetic_decrypt(ciphertext, key[1])
+            ciphertext = monoalphabetic_decrypt(ciphertext, original_key[1])
+            
         elif name == "AES":
-            # The decrypt functions are now named with _b64 argument internally
-            ciphertext = aes_decrypt(ciphertext, key) 
+            ciphertext = aes_decrypt(ciphertext, original_key) 
+            
         elif name == "DES":
-            # The decrypt functions are now named with _b64 argument internally
-            ciphertext = des_decrypt(ciphertext, key)
+            ciphertext = des_decrypt(ciphertext, original_key)
+            
         elif name == "RSA":
-            ciphertext = rsa_decrypt(ciphertext, key)
-    return ciphertext
+            ciphertext = rsa_decrypt(ciphertext, original_key)
+            
+        else:
+             # Fallback
+             print(f"Unknown cipher step: {name}")
 
+    return ciphertext
+    
 # ==================== ATTACK HELPERS (unchanged) ====================
 
 # Improved Common Word List
@@ -611,6 +679,18 @@ def attack_vigenere(ciphertext):
     return {"key_length": key_length, "key": key, "plaintext": plaintext, "score": score}
 
 # ==================== UTILITY FUNCTIONS ====================
+
+
+def derive_key(master_seed, purpose_str, length):
+    """
+    Derives a deterministic key using PBKDF2 from the master_seed and a unique purpose.
+    length is the desired output length (in bytes).
+    """
+    # Purpose string acts as a unique salt/context
+    salt = purpose_str.encode('utf-8')
+    # Count 100000 is for good measure, making brute force slow
+    return PBKDF2(master_seed, salt, dkLen=length, count=100000, hmac_hash_module=SHA512)
+    
 def is_base64(s):
     try:
         # Check if the length is a multiple of 4, a requirement for standard base64

@@ -1,7 +1,7 @@
 
-# 🛡️ CyberX Encryptor: Multi-Cipher Simulation Stack
+# 🛡️ CryptX Encryptor: Multi-Cipher Simulation Stack
 
-CyberX Encryptor is a full-stack, educational application designed to encrypt user messages using a **randomized, layered sequence** of both classical and modern ciphers. It uses **Flask** for the backend, **PostgreSQL** for secure session storage, and is containerized using **Docker Compose** for reliable deployment.
+CryptX Encryptor is a full-stack, educational application designed to encrypt user messages using a **randomized, layered sequence** of both classical and modern ciphers. It uses **Flask** for the backend, **PostgreSQL** for secure session storage, and is containerized using **Docker Compose** for reliable deployment.
 
 A core feature is the **Attack Simulation** route (`/simulate`), which analyzes the generated ciphertext for common weaknesses using techniques like **Kasiski Examination** (for Vigenère), Brute Force (for Caesar/Rail-Fence), and **entropy analysis** to calculate a **Security Strength Score**.
 

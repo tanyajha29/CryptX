@@ -2,44 +2,33 @@ pipeline {
     agent any
 
     stages {
-        stage('Clone Repo') {
+
+        stage('Checkout Code') {
             steps {
-                checkout scm
+                git branch: 'main',
+                    url: 'https://github.com/tanyajha29/CryptX.git'
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                docker build -t cryptx-app .
-                '''
-            }
-        }
-
-        stage('Run Containers') {
+        stage('Cleanup Old Containers') {
             steps {
                 sh '''
                 docker compose down || true
-                docker compose up -d
+                docker system prune -f || true
                 '''
             }
         }
 
-        stage('Verify Deployment') {
+        stage('Build Docker Images') {
             steps {
-                sh '''
-                docker ps
-                '''
+                sh 'docker compose build'
             }
         }
-    }
 
-    post {
-        success {
-            echo '✅ CryptX deployed successfully!'
-        }
-        failure {
-            echo '❌ Deployment failed.'
+        stage('Deploy Application') {
+            steps {
+                sh 'docker compose up -d'
+            }
         }
     }
 }

@@ -1,30 +1,23 @@
-version: '3.8'
 services:
   db:
     image: postgres:latest
-    container_name: cyberx-postgres
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password123
       POSTGRES_DB: cyberx_db
-      
     ports:
-      - "5432:5432" 
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
 
   app:
-    build: . # Dockerfile image
-    container_name: cyberx-app
+    build: .
     command: ["/bin/sh", "-c", "chmod +x /usr/src/app/entrypoint.sh && /usr/src/app/entrypoint.sh"]
-
     ports:
       - "5000:8080"
     environment:
-      # CRITICAL FIX: Hostname ab 'db' hai (DB service ka naam), 127.0.0.1 nahi
       DATABASE_URL: postgresql://postgres:password123@db:5432/cyberx_db
-    # Ye ensure karta hai ki app shuru hone se pehle DB shuru ho jaaye
     depends_on:
       - db
 

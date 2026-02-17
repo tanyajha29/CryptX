@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SELENIUM_HOST = "16.171.160.165"
+        SELENIUM_HOST = "172.31.38.131"
         SELENIUM_PORT = "4444"
     }
 

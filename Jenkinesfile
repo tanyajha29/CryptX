@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        SELENIUM_HOST = "172.31.38.131"
+        SELENIUM_PORT = "4444"
+    }
+
     stages {
 
         stage('Checkout Code') {
@@ -29,6 +34,26 @@ pipeline {
             steps {
                 sh 'docker compose up -d'
             }
+        }
+
+        stage('Run Selenium Tests (Remote EC2)') {
+            steps {
+                sh '''
+                echo "Checking Selenium Server..."
+                curl http://$SELENIUM_HOST:$SELENIUM_PORT/status
+
+                echo "Running Selenium Tests..."
+                source ~/cryptx-venv/bin/activate
+                export SELENIUM_REMOTE_URL="http://$SELENIUM_HOST:$SELENIUM_PORT/wd/hub"
+                python test.py
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline Finished"
         }
     }
 }

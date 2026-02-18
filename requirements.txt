@@ -6,4 +6,5 @@ numpy
 pycryptodomex
 Flask
 Flask-SQLAlchemy
+selenium
 psycopg2-binary
